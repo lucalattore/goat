@@ -1,4 +1,6 @@
-mport "database/sql"
+package goat
+
+import "database/sql"
 
 // Transaction is an interface that models the standard transaction in
 // `database/sql`.

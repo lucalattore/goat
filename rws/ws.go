@@ -115,8 +115,12 @@ var upgrader = websocket.Upgrader{
 
 // WSHandler handles websocket requests
 type WSHandler struct {
-	RedisPool *redis.Pool
-	FilterOut bool
+	RedisPool      *redis.Pool
+	FilterOut      bool
+	WriteWait      time.Duration
+	PongWait       time.Duration
+	PingPeriod     time.Duration
+	MaxMessageSize int64
 }
 
 // ServeWS is the function to handle websocket request. You have to register it into your http mux
@@ -132,10 +136,31 @@ func (h *WSHandler) ServeWS(dispatcher *Dispatcher, w http.ResponseWriter, r *ht
 	log.Println("Client", id, "connected as user", authData.PreferredUsername())
 	client := &Client{ID: id, conn: conn, inbound: make(chan []byte), outbound: make(chan []byte), AuthData: authData}
 	done := make(chan bool, 1)
+
+	ww := h.WriteWait
+	if ww == 0 {
+		ww = writeWait
+	}
+
+	pw := h.PongWait
+	if pw == 0 {
+		pw = pongWait
+	}
+
+	pp := h.PingPeriod
+	if pp == 0 {
+		pp = pingPeriod
+	}
+
+	mmsize := h.MaxMessageSize
+	if mmsize == 0 {
+		mmsize = maxMessageSize
+	}
+
 	go client.listener(h.RedisPool, h.FilterOut, done)
 	go client.process(dispatcher)
-	go client.write()
-	go client.receive(done)
+	go client.write(ww, pp)
+	go client.receive(done, pw, mmsize)
 }
 
 // receive pumps messages from the websocket connection to the hub.
@@ -143,7 +168,7 @@ func (h *WSHandler) ServeWS(dispatcher *Dispatcher, w http.ResponseWriter, r *ht
 // The application runs receive in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *Client) receive(done chan bool) {
+func (c *Client) receive(done chan bool, pongWait time.Duration, maxMessageSize int64) {
 	defer func() {
 		done <- true
 		c.conn.Close()
@@ -176,7 +201,7 @@ func (c *Client) receive(done chan bool) {
 // A goroutine running write is started for each connection. The
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
-func (c *Client) write() {
+func (c *Client) write(writeWait, pingPeriod time.Duration) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()

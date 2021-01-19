@@ -6,10 +6,15 @@ import (
 	"strings"
 )
 
+// WSChannelParams describes channel customization
+type WSChannelParams struct {
+	TopicPrefix string
+}
+
 // Subscribe is the function to handle subscription to topic
-func Subscribe(c *Client, r *map[string]interface{}) interface{} {
+func (p *WSChannelParams) Subscribe(c *Client, r *map[string]interface{}) interface{} {
 	if ch, ok := (*r)["topic"].(string); ok {
-		if strings.HasPrefix(ch, "sheet:") {
+		if strings.HasPrefix(ch, p.TopicPrefix+":") {
 			log.Println("Client", c.ID, "subscribing to topic", ch)
 			err := c.psc.Subscribe(ch)
 			if err != nil {
@@ -19,7 +24,7 @@ func Subscribe(c *Client, r *map[string]interface{}) interface{} {
 	} else if chs, ok := (*r)["topic"].([]interface{}); ok {
 		topics := make([]interface{}, 0)
 		for _, topic := range chs {
-			if strings.HasPrefix(fmt.Sprintf("%v", topic), "sheet:") {
+			if strings.HasPrefix(fmt.Sprintf("%v", topic), p.TopicPrefix+":") {
 				topics = append(topics, topic)
 			}
 		}
@@ -37,9 +42,9 @@ func Subscribe(c *Client, r *map[string]interface{}) interface{} {
 }
 
 // Unsubscribe is the function to handle unsubscribe from topic
-func Unsubscribe(c *Client, r *map[string]interface{}) interface{} {
+func (p *WSChannelParams) Unsubscribe(c *Client, r *map[string]interface{}) interface{} {
 	if ch, ok := (*r)["topic"].(string); ok {
-		if strings.HasPrefix(ch, "sheet:") {
+		if strings.HasPrefix(ch, p.TopicPrefix+":") {
 			log.Println("Client", c.ID, "unsubscribing from topic", ch)
 			err := c.psc.Unsubscribe(ch)
 			if err != nil {
@@ -49,7 +54,7 @@ func Unsubscribe(c *Client, r *map[string]interface{}) interface{} {
 	} else if chs, ok := (*r)["topic"].([]interface{}); ok {
 		topics := make([]interface{}, 0)
 		for _, topic := range chs {
-			if strings.HasPrefix(fmt.Sprintf("%v", topic), "sheet:") {
+			if strings.HasPrefix(fmt.Sprintf("%v", topic), p.TopicPrefix+":") {
 				topics = append(topics, topic)
 			}
 		}
@@ -61,7 +66,7 @@ func Unsubscribe(c *Client, r *map[string]interface{}) interface{} {
 				log.Println(err)
 			}
 		} else {
-			err := c.psc.PUnsubscribe("sheet:*")
+			err := c.psc.PUnsubscribe(p.TopicPrefix + ":*")
 			if err != nil {
 				log.Println(err)
 			}

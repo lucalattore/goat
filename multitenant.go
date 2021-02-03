@@ -75,5 +75,9 @@ func (mdb *MDB) Close() error {
 
 // Get find and return the db connection for the provider domain
 func (mdb *MDB) Get(domain string) *sql.DB {
-	return mdb.domains[domain]
+	db, ok := mdb.domains[domain]
+	if !ok {
+		db = mdb.domains["default"]
+	}
+	return db
 }
